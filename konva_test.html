@@ -1,0 +1,192 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <!-- USE DEVELOPMENT VERSION -->
+    <script src="https://unpkg.com/konva@4.0.12/konva.min.js"></script>
+    <script src="./scheduling.js"></script>
+    <meta charset="utf-8" />
+    <title>Yardstick Algorithm Demo</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #f0f0f0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="container"></div>
+    <script>
+	
+      var width = window.innerWidth;
+      var height = window.innerHeight;
+
+      var stage = new Konva.Stage({
+        container: 'container',
+        width: width,
+        height: height
+      });
+
+      var topLayer = new Konva.Layer();
+      //stage.add(layer);
+	  
+	  // Job properties.
+	  var jobHeight = 50;
+	  var initialJobWidth = 50;
+
+	  // Margin between two jobs.
+	  var jobVertMargin = 50;
+	  var jobLeftHorMargin = 300;
+
+	  var jobArea = jobHeight + jobVertMargin;
+	  // Margin of the first job from the top of the stage.
+	  var topMargin = 100;
+	  
+
+	// Grid snap size.
+	var blockSnapSize = 50;
+	
+    // Number of jobs currently on stage.
+	var jobs = 0;
+
+	// Array of all job rectangles currently on stage.
+   	var jobRects = [];
+	// Array of all job labels currently on stage.
+	var jobLabels = [];
+
+	  // Draw the grid.
+	function DrawGrid()
+	{
+		var gridLayer = new Konva.Layer();
+		var padding = blockSnapSize;
+		console.log(width, padding, width / padding);
+		for (var i = 0; i < width / padding; i++) {
+			gridLayer.add(new Konva.Line({
+				points: [Math.round(i * padding) + 0.5, 0, Math.round(i * padding) + 0.5, height],
+				stroke: '#ddd',
+				strokeWidth: 1,
+			}));
+		}
+
+		gridLayer.add(new Konva.Line({points: [0,0,10,10]}));
+		for (var j = 0; j < height / padding; j++) {
+			gridLayer.add(new Konva.Line({
+			points: [0, Math.round(j * padding), width, Math.round(j * padding)],
+			stroke: '#ddd',
+			strokeWidth: 0.5,
+			}));
+		}
+
+		return gridLayer;
+	}
+	
+	
+	function UpdateJobText(j)
+	{
+		var rect = jobRects[j];
+		var label = jobLabels[j];
+		var relDate = (rect.x() - jobLeftHorMargin) / parseFloat(blockSnapSize);
+		var procTime = rect.width() / parseFloat(blockSnapSize);
+		
+		var line = 'J' + j + ' r: ' + relDate.toFixed(2) + ', p: ' + procTime.toFixed(2);
+		label.text(line);
+		topLayer.batchDraw();
+	}
+
+	// Possible TODO: write a clean function instead of accessing global vars.
+	  function AddJob()
+	  {
+	    // Add job rectangle.
+	    var rect = new Konva.Rect({
+			x: jobLeftHorMargin,
+			y: topMargin + jobs*jobArea,
+			width: initialJobWidth,
+			height: jobHeight,
+			fill: 'red',
+			name: 'rect',
+			stroke: 'black',
+			strokeScaleEnabled: false,
+			draggable: true,
+			dragBoundFunc: function(pos) {
+				return {
+					x: pos.x,
+					y: this.absolutePosition().y
+				};
+			}
+		});
+		
+		rect.jobIndex = jobs;
+		
+		jobRects.push(rect);
+		topLayer.add(rect);		
+
+		// Add rectangle transformer.
+		var tr = new Konva.Transformer({
+			rotateEnabled: false,
+			enabledAnchors: ['middle-left', 'middle-right'],
+            ignoreStroke: true
+		});
+		topLayer.add(tr);
+		tr.attachTo(rect);
+		
+
+		// Add job label.
+		var label = new Konva.Text({
+			x: 30,
+			y: topMargin + jobs*jobArea + 20,
+			fontSize: 20,
+			text: '',
+			draggable: false
+		});
+		
+		label.jobIndex = jobs;
+		
+		rect.on('dragmove', function(evt) {
+			UpdateJobText(evt.target.jobIndex);
+		});
+		
+		rect.on('transform', function() {
+			rect.setAttrs({
+				width: rect.width() * rect.scaleX(),
+				height: rect.height() * rect.scaleY(),
+				scaleX: 1,
+				scaleY: 1
+			});
+			UpdateJobText(this.jobIndex);
+		});
+	  
+		jobLabels.push(label);
+		topLayer.add(label);
+		
+		UpdateJobText(jobs);
+		jobs++;		
+	  }
+	  
+	  // Draw the scene.
+	  
+	  var gridLayer = DrawGrid();
+	  stage.add(gridLayer);
+	  stage.add(topLayer);
+	  
+	  var addJobButton = new Konva.Circle({
+		x: width - 70,
+		y: 70,
+		radius: 15,
+		fill: 'green',
+		stroke: 'black',
+		strokeWidth: 2
+	  });
+	  
+	addJobButton.on('click', function(evt) {
+		AddJob();
+		topLayer.draw();
+	});
+	  
+	  topLayer.add(addJobButton);
+	  topLayer.draw();
+
+    </script>
+  </body>
+</html>
