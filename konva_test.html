@@ -1,9 +1,13 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
   <head>
     <!-- USE DEVELOPMENT VERSION -->
     <script src="https://unpkg.com/konva@4.0.12/konva.min.js"></script>
+    <script src="./heap-js.es5.js"></script>
     <script src="./scheduling.js"></script>
+    <script src="./algorithms.js"></script>
+    <script src="./rendering.js"></script>
+    <script src="./unittest.js"></script>
     <meta charset="utf-8" />
     <title>Yardstick Algorithm Demo</title>
     <style>
@@ -56,114 +60,6 @@
 	// Array of all job labels currently on stage.
 	var jobLabels = [];
 
-	  // Draw the grid.
-	function DrawGrid()
-	{
-		var gridLayer = new Konva.Layer();
-		var padding = blockSnapSize;
-		console.log(width, padding, width / padding);
-		for (var i = 0; i < width / padding; i++) {
-			gridLayer.add(new Konva.Line({
-				points: [Math.round(i * padding) + 0.5, 0, Math.round(i * padding) + 0.5, height],
-				stroke: '#ddd',
-				strokeWidth: 1,
-			}));
-		}
-
-		gridLayer.add(new Konva.Line({points: [0,0,10,10]}));
-		for (var j = 0; j < height / padding; j++) {
-			gridLayer.add(new Konva.Line({
-			points: [0, Math.round(j * padding), width, Math.round(j * padding)],
-			stroke: '#ddd',
-			strokeWidth: 0.5,
-			}));
-		}
-
-		return gridLayer;
-	}
-	
-	
-	function UpdateJobText(j)
-	{
-		var rect = jobRects[j];
-		var label = jobLabels[j];
-		var relDate = (rect.x() - jobLeftHorMargin) / parseFloat(blockSnapSize);
-		var procTime = rect.width() / parseFloat(blockSnapSize);
-		
-		var line = 'J' + j + ' r: ' + relDate.toFixed(2) + ', p: ' + procTime.toFixed(2);
-		label.text(line);
-		topLayer.batchDraw();
-	}
-
-	// Possible TODO: write a clean function instead of accessing global vars.
-	  function AddJob()
-	  {
-	    // Add job rectangle.
-	    var rect = new Konva.Rect({
-			x: jobLeftHorMargin,
-			y: topMargin + jobs*jobArea,
-			width: initialJobWidth,
-			height: jobHeight,
-			fill: 'red',
-			name: 'rect',
-			stroke: 'black',
-			strokeScaleEnabled: false,
-			draggable: true,
-			dragBoundFunc: function(pos) {
-				return {
-					x: pos.x,
-					y: this.absolutePosition().y
-				};
-			}
-		});
-		
-		rect.jobIndex = jobs;
-		
-		jobRects.push(rect);
-		topLayer.add(rect);		
-
-		// Add rectangle transformer.
-		var tr = new Konva.Transformer({
-			rotateEnabled: false,
-			enabledAnchors: ['middle-left', 'middle-right'],
-            ignoreStroke: true
-		});
-		topLayer.add(tr);
-		tr.attachTo(rect);
-		
-
-		// Add job label.
-		var label = new Konva.Text({
-			x: 30,
-			y: topMargin + jobs*jobArea + 20,
-			fontSize: 20,
-			text: '',
-			draggable: false
-		});
-		
-		label.jobIndex = jobs;
-		
-		rect.on('dragmove', function(evt) {
-			UpdateJobText(evt.target.jobIndex);
-		});
-		
-		rect.on('transform', function() {
-			rect.setAttrs({
-				width: rect.width() * rect.scaleX(),
-				height: rect.height() * rect.scaleY(),
-				scaleX: 1,
-				scaleY: 1
-			});
-			UpdateJobText(this.jobIndex);
-		});
-	  
-		jobLabels.push(label);
-		topLayer.add(label);
-		
-		UpdateJobText(jobs);
-		jobs++;		
-	  }
-	  
 	  // Draw the scene.
 	  
 	  var gridLayer = DrawGrid();
@@ -185,7 +81,13 @@
 	});
 	  
 	  topLayer.add(addJobButton);
-	  topLayer.draw();
+      // topLayer.draw();
+
+      // Draw the unit test schedules.
+
+      var VS = new VisualSchedule(jobLeftHorMargin, 400, jobHeight, 10, initialJobWidth, topLayer);
+      VS.RenderSchedule(sched, null);
+      topLayer.draw();
 
     </script>
   </body>

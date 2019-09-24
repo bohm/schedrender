@@ -6,9 +6,9 @@ const EPS = Number(0.00001); // our local precision.
 
 // TODO: make this work better. 1000 is an essentially random constant.
 function nearlyEqual(a, b) {
-    absA = Math.abs(a);
-    absB = Math.abs(b);
-    diff = Math.abs(a - b);
+    var absA = Math.abs(a);
+    var absB = Math.abs(b);
+    var diff = Math.abs(a - b);
 
     if (a == b) {
         return true;
@@ -88,9 +88,9 @@ class ExecutionUnit {
     machine;
     start;
     end;
-    constructor(j, s, m, s, e) {
+    constructor(j, speed, m, s, e) {
 		this.jobID = j;
-		this.speed = s;
+		this.speed = speed;
 		this.machine = m;
 		this.start = s;
 		this.end = e;
@@ -103,7 +103,13 @@ class ExecutionUnit {
     // Given a sorted timelist (list of times), decomposes this single execution unit into a list (array) of execution units
     // such that no time point in the timelist lies strictly inside any execution unit.
     // Returns the list as the decomposition.
-    decompose(sortedTimelist) {
+    decompose(sortedTimeList) {
+
+	// console.log("Decomposing execution unit");
+	// console.log(this);
+	// console.log("by the sorted timelist");
+	// console.log(sortedTimeList);
+	
 	var openSegmentStart = 0;
 	var decomposition = [];
 	var openSegment = false;
@@ -113,18 +119,21 @@ class ExecutionUnit {
 		continue;
 	    }
 
-	    if (NearlyEqual(t,this.start)) {
+	    if (nearlyEqual(t,this.start)) {
 		// do nothing, wait for the first time strictly greater than start.
 		openSegmentStart = this.start;
 		openSegment = true;
 		continue;
 	    }
 
-	    if ((NearlyEqual(t,end) || t > end) && openSegment)
+	    if ((nearlyEqual(t,this.end) || t > this.end) && openSegment)
 	    {
-		decomposition.push(new ExecutionUnit(this.j, this.speed, this.machine, openSegmentStart, t));
+		decomposition.push(new ExecutionUnit(this.jobID, this.speed, this.machine, openSegmentStart, t));
 		openSegment = false;
-	    } else if ( (start > t) && (t < end) )
+		break;
+	    }
+
+	    if ( (this.start < t) && (t < this.end) )
 	    {
 		if(!openSegment)
 		{
@@ -132,7 +141,7 @@ class ExecutionUnit {
 		    openSegment = true;
 		}
 
-		decomposition.push(new ExecutionUnit(this.j, this.speed, this.machine, openSegmentStart, t));
+		decomposition.push(new ExecutionUnit(this.jobID, this.speed, this.machine, openSegmentStart, t));
 		openSegmentStart = t;
 	    }
 	}
@@ -140,22 +149,47 @@ class ExecutionUnit {
 	// Close the last segment if any segment is open.
 	if (openSegment)
 	{
-	    decomposition.push(new ExecutionUnit(this.j, this.speed, this.machine, openSegmentStart, this.end));
+	    decomposition.push(new ExecutionUnit(this.jobID, this.speed, this.machine, openSegmentStart, this.end));
 	}
 
 	// If the time slots just do not overlap at all, return the execution unit as a singleton in the array.
 
-	if (decomposition.length() == 0)
+	if (decomposition.length == 0)
 	{
 	    decomposition.push(this);
 	}
+
+	// console.log("Final decomposition:");
+	// console.log(decomposition);
 
 	return decomposition;
     }
 }
 
+Job.prototype.AddExecution = function(execunit)
+{
+    this.executionList.push(execunit);
+}
+
 // Instance: a list of jobs in deadline order, with their release times, processing times and possibly deadlines.
 
+class Instance {
+    machines;
+    maxspeed;
+    parallelization;
+    deadlineorder;
+    jobs = [];
+
+    constructor(machines, maxspeed, parallelization, deadlineorder, joblist)
+    {
+	this.machines = machines;
+	this.maxspeed = speed;
+	this.paralellization = parallelization;
+	this.jobs = joblist;
+	this.deadlineorder = deadlineorder;
+
+    }
+};
 
 // Schedule: number of machines,
 // speed of individual machine, whether jobs can run in parallel on several machines, and then a list of jobs, each with
@@ -198,22 +232,22 @@ class MachineSchedule {
 	this.parallelization = sched.parallelization;
 
 	// Initialize the load array of all m machines.
-	for (var i = 0; i < m; i++) {
-	    loads[i] = [];
+	for (var i = 0; i < this.m; i++) {
+	    this.loads[i] = [];
 	}
 
 	// Assign jobs to machines.
 	for (const job of sched.jobs) {
 	    for (const ex of job.executionList) {
-		loads[ex.machine].push(ex);
+		this.loads[ex.machine].push(ex);
 	    }
 	}
     }
 
     // Get all relevant times (when an execution unit starts or stops) and return their sorted array.
     relevantTimes(machine) {
-	times = [];
-	for (const ex of loads[machine]) {
+	var times = [];
+	for (const ex of this.loads[machine]) {
 	    times.push(ex.start);
 	    times.push(ex.end);
 	}
@@ -226,9 +260,11 @@ class MachineSchedule {
 
     decompose() {
 
-	for (var machine = 0; machine < m; machine++) {
-	    newLoads = [];
-	    times = relevantTimes(machine);
+	for (var machine = 0; machine < this.m; machine++) {
+	    var newLoads = [];
+	    var times = this.relevantTimes(machine);
+	    console.log("Relevant times of machine" + machine.toString());
+	    console.log(times);
 
 	    for (let ex of this.loads[machine])
 	    {
@@ -238,11 +274,15 @@ class MachineSchedule {
 		    newLoads.push(subex);
 		}
 	    }
-	    // Now that we have elementary loads, sorting by starting time makes things easier
-	    newLoads.sort((a,b) => a.start <= b.start);
-
 	    // Replace your previous loads by newLoads
 	    this.loads[machine] = newLoads;
+	}
+    }
+
+    sortStartTimes() {
+	for (var machine = 0; machine < this.m; machine++)
+	{
+	    this.loads[machine].sort((a,b) => a.start - b.start);
 	}
     }
 }
