@@ -40,12 +40,17 @@ function sort_unique(arr) {
 // Data types.
 
 class Job {
+    // These information matter for the instance and the scheduling.
     id;
     deadlineOrder;
     order;
     release;
     deadline;
     ptime;
+
+    // These only matter for the scheduling.
+    amountDone = Number(0);
+    
     executionList = [];
 	
     constructor(dlorder, id, release, deadline, ptime)
@@ -74,6 +79,33 @@ class Job {
 	}
 
 	if (nearlyEqual(x, this.ptime))
+	{
+	    return true;
+	} else {
+	    return false;
+	}
+    }
+
+    // Functions used while jobs are being scheduled.
+    
+    allDone()
+    {
+	if (nearlyEqual(amountDone, ptime))
+	{
+	    return true;
+	} else {
+	    return false;
+	}
+    }
+
+    underWorked(time)
+    {
+	if (allDone()) // If a job is done, we do not consider it underworked.
+	{
+	    return false;
+	}
+	
+	if ((time - release) > amountDone)
 	{
 	    return true;
 	} else {
@@ -201,6 +233,12 @@ class Schedule {
     parallelization = false;
     jobs = [];
 
+    // There are two views of a schedule -- the "job view", which lists all the times a job is executed,
+    // and a "machine view", which lists for each machine the execution units that run on said machine.
+    // The constructor of Schedule does only copy the jobs along with execution units (there might not be any,
+    // if we are starting to solve the instance). The array loads is empty until machineView() is called.
+    loads = [];
+
     constructor(machines, speed, parallelization, joblist) {
 	this.m = machines;
 	this.s = speed;
@@ -208,25 +246,8 @@ class Schedule {
 	this.jobs = joblist;
     }
 
-
-    // For all jobs, check that they are covered by execution intervals.
-    // Then, build a machine map and check:
-    // * that no machine runs higher than s at all times
-    // * and if jobs are not parallelizable, that they run only on one machine at all times.
-    validate() {
-	return false; // TODO: implementation.
-    }
-    
-}
-
-// A secondary class, which stores the schedule as a list of execution units which are assigned to a specific machine.
-class MachineSchedule {
-    m = 0;
-    s = 1.0;
-    parallelization = false;
-    loads = [];
-
-    constructor(sched) {
+    // Call machineView() to get the loads of all machines -- once everything is scheduled.
+    machineView() {
 	this.m = sched.m;
 	this.s = sched.s;
 	this.parallelization = sched.parallelization;
@@ -285,4 +306,14 @@ class MachineSchedule {
 	    this.loads[machine].sort((a,b) => a.start - b.start);
 	}
     }
+
+
+    // For all jobs, check that they are covered by execution intervals.
+    // Then, build a machine map and check:
+    // * that no machine runs higher than s at all times
+    // * and if jobs are not parallelizable, that they run only on one machine at all times.
+    validate() {
+	return false; // TODO: implementation.
+    }
+
 }
