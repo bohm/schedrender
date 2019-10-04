@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <!-- USE DEVELOPMENT VERSION -->
     <script src="https://unpkg.com/konva@4.0.12/konva.min.js"></script>
     <script src="./heap-js.es5.js"></script>
@@ -86,7 +90,7 @@
       // Draw the unit test schedules.
 
       var VS = new VisualSchedule(jobLeftHorMargin, 400, jobHeight, 10, initialJobWidth, topLayer);
-      VS.RenderSchedule(sched, null);
+      VS.RenderSchedule(yssched, null);
       topLayer.draw();
 
     </script>

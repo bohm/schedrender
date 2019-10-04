@@ -217,15 +217,15 @@ class VisualSchedule
 	    }
 	}
 	
-	var msched = new MachineSchedule(sched);
-	msched.decompose();
-	msched.sortStartTimes();
+	sched.machineView(); // Compute the machine view of the schedule.
+	sched.decompose();
+	sched.sortStartTimes();
 
-	for (let machine = 0; machine < msched.m; machine++)
+	for (let machine = 0; machine < sched.m; machine++)
 	{
 	    let curTime = 0.0;
 	    let curAllocSpeed = 0.0;
-	    for (let ex of msched.loads[machine])
+	    for (let ex of sched.loads[machine])
 	    {
 		if (ex.start > curTime)
 		{

@@ -39,8 +39,8 @@ function sort_unique(arr) {
 
 // Data types.
 
+// These information matter for the instance and the scheduling.
 class Job {
-    // These information matter for the instance and the scheduling.
     id;
     deadlineOrder;
     order;
@@ -90,7 +90,7 @@ class Job {
     
     allDone()
     {
-	if (nearlyEqual(amountDone, ptime))
+	if (nearlyEqual(this.amountDone, this.ptime))
 	{
 	    return true;
 	} else {
@@ -98,14 +98,14 @@ class Job {
 	}
     }
 
-    underWorked(time)
+    underworked(time)
     {
-	if (allDone()) // If a job is done, we do not consider it underworked.
+	if (this.allDone()) // If a job is done, we do not consider it underworked.
 	{
 	    return false;
 	}
 	
-	if ((time - release) > amountDone)
+	if ((time - this.release) > this.amountDone)
 	{
 	    return true;
 	} else {
@@ -215,13 +215,13 @@ class Instance {
     constructor(machines, maxspeed, parallelization, deadlineorder, joblist)
     {
 	this.machines = machines;
-	this.maxspeed = speed;
+	this.maxspeed = maxspeed;
 	this.paralellization = parallelization;
 	this.jobs = joblist;
 	this.deadlineorder = deadlineorder;
 
     }
-};
+}
 
 // Schedule: number of machines,
 // speed of individual machine, whether jobs can run in parallel on several machines, and then a list of jobs, each with
@@ -242,15 +242,12 @@ class Schedule {
     constructor(machines, speed, parallelization, joblist) {
 	this.m = machines;
 	this.s = speed;
-	this.paralellization = parallelization;
+	this.parallelization = parallelization;
 	this.jobs = joblist;
     }
 
     // Call machineView() to get the loads of all machines -- once everything is scheduled.
     machineView() {
-	this.m = sched.m;
-	this.s = sched.s;
-	this.parallelization = sched.parallelization;
 
 	// Initialize the load array of all m machines.
 	for (var i = 0; i < this.m; i++) {
@@ -258,7 +255,7 @@ class Schedule {
 	}
 
 	// Assign jobs to machines.
-	for (const job of sched.jobs) {
+	for (const job of this.jobs) {
 	    for (const ex of job.executionList) {
 		this.loads[ex.machine].push(ex);
 	    }

@@ -17,12 +17,29 @@ class Event
 
 function eventComparator(a, b)
 {
-    return a.time - b.time;
+    if (a == undefined && b != undefined)
+    {
+	return b;
+    } else if (b == undefined && a != undefined)
+    {
+	return a;
+    } else
+    {
+	return a.time - b.time;
+    }
 }
 
 function releaseComparator(a, b)
 {
-    return a.release - b.release; 
+    if (a == undefined && b != undefined)
+    {
+	return b;
+    } else if (b == undefined && a != undefined)
+    {
+	return a;
+    } else {
+	return a.release - b.release; 
+    }
 }
 
 // Prune the hashmap of pending jobs and remove all which are finished.
@@ -46,29 +63,30 @@ function PrunePending(pending)
 // Simple functions for closing an execution unit.
 // In the functions below we make use of the fact that JS is a pass-by-sharing language;
 // this means that if we edit the inside of machineMap, this change will propagate.
-function CloseExecutionUnit(sched, m, endTime, machineMap, machMapStarts)
+function CloseExecutionUnit(sched, m, endTime, machMap, machMapStarts)
 {
-    var jobID = machineMap[m];
+    var jobID = machMap[m];
     if (jobID == null)
     {
 	console.log("Trying to close an execution unit of an empty machine.");
     } else {
 	var startTime = machMapStarts[m];
-	var unit = new ExecutionUnit(jobID, 1.0, startTime, endTime);
-	sched.jobs[jobID].push(unit);
+	var unit = new ExecutionUnit(jobID, 1.0, m, startTime, endTime);
+	sched.jobs[jobID].executionList.push(unit);
+	sched.jobs[jobID].amountDone += unit.volume(); 
 	// set machine as free
 	machMap[m] = null;
 	machMapStarts[m] = null;
     }
 }
 
-function CloseUnderworked(sched, j, endTime, machineMap, machMapStarts)
+function CloseUnderworked(sched, j, endTime, machMap, machMapStarts)
 {
-    for (let i = 0; i < machineMap.length; i++)
+    for (let i = 0; i < machMap.length; i++)
     {
-	if (machineMap[i] != null && machineMap[i] == j)
+	if (machMap[i] != null && machMap[i] == j)
 	{
-	    CloseExecutionUnit(loads, i, runningJobs, machineMap);
+	    CloseExecutionUnit(sched, i, endTime, machMap, machMapStarts);
 	}
     }
 }
@@ -90,7 +108,31 @@ function CloseAll(sched, endTime, machineMap, machMapStarts)
     }
 }
 
-function Yardstick(instance)
+// Find x such that ax + b = cx + d.
+
+function SolveLinearEq(a,b,c,d)
+{
+    return ((d - b) / (a - c));
+}
+
+// Compute the next time when the job leaves the underworked state
+// based on how much the job is processed, how much speed it will have from now on,
+// and when it was released.
+
+function ComputePacingChange(job, time, allocatedMachines)
+{
+    // The equation we are solving is (x - r_j) = s*(x - time) + A
+    // A is the amount already processed on the job by time A
+    
+    pacingLin = Number(1); // Linear multiplier of the left side
+    pacingConst = Number(-1) * job.release; // Constant factor of the left side
+    underMult = allocatedMachines;
+    underConst = Number(-1) * allocatedMachines * time + job.amountDone;
+    
+    var result = SolveLinearEq(pacingLin, pacingConst, underMult, underConst);
+}
+
+function Yardstick(insta)
 {
     // Ignore parallelization and speeds, yardstick only works with
     // speed 1.0 and full paralelization.
@@ -108,8 +150,8 @@ function Yardstick(instance)
     
     const releaseHeap = new Heap(releaseComparator);
     
-    // Heap of all time events relevant for this phase.
-    const eventHeap = new Heap(eventComparator);
+    // Heap of all "job finished" event for one phase.
+    const jobFinishHeap = new Heap(eventComparator);
 
     var time = Number(0); // current time
 
@@ -119,27 +161,53 @@ function Yardstick(instance)
     var jobUnderworked = false;
     var underID = 0;
     var leavesUnderworked = Number(0);
-    
+
+    var retsched = new Schedule(insta.machines, 1.0, true, insta.jobs);
+
+    // Populate the release queue from the instance.
+    for (let job of insta.jobs)
+    {
+	releaseHeap.push(job);
+    }
+
     // Main phase loop, triggered whenever there is a new release.
     while (!releaseHeap.isEmpty())
     {
+	// Add all jobs released in the current time to the pending map.
 	var top = releaseHeap.peek();
-	if (nearlyEqual(top.release, time))
+	while (!releaseHeap.isEmpty() && nearlyEqual(top.release, time))
 	{
-	    // Add the job to the pending jobs.
-	    // var job = 
+	    console.log("Heap before pop:");
+	    console.log(releaseHeap);
+	    var job = releaseHeap.pop();
+	    pending[job.order] = job;
+
+	    if (!releaseHeap.isEmpty())
+	    {
+		top = releaseHeap.peek();
+	    }
 	}
 
 	if (!releaseHeap.isEmpty())
 	{
-	    nextRelease = releaseHeap.peek().release;
 	    jobUpcoming = true;
+	    upcomingRelease = releaseHeap.peek().release;
 	} else
 	{
 	    jobUpcoming = false;
 	}
 
-	jobFinishHeap.clear(); // Clear the event heap for the current phase.
+	// Reset variables that are used inside the time processing loop.
+	jobFinishHeap.clear();
+	jobUnderworked = false;
+	underID = -1;
+	leavesUnderworked = Number(0);
+
+	for (var m = 0; m < insta.machines; m++)
+	{
+	    machineMap[m] = null;
+	    startTimes[m] = null;
+	}
 
 	while(true)
 	{
@@ -149,7 +217,7 @@ function Yardstick(instance)
 	    // and break out of the loop;
 	    if (jobUpcoming && nearlyEqual(time, upcomingRelease))
 	    {
-		CloseAll(sched, time, machineMap, startTimes);
+		CloseAll(retsched, time, machineMap, startTimes);
 		PrunePending(pending);
 		break;
 	    }
@@ -158,7 +226,10 @@ function Yardstick(instance)
 	    // close this job on all machines which it has.
 	    if (jobUnderworked && nearlyEqual(time, leavesUnderworked))
 	    {
-		CloseUnderworked(sched, underID, time, machineMap, startTimes);
+		CloseUnderworked(retsched, underID, time, machineMap, startTimes);
+		jobUnderworked = false;
+		underID = -1;
+		leavesUnderworked = Number(0);
 	    }
 
 	    // c) If any job is finished, close its execution unit.
@@ -166,22 +237,26 @@ function Yardstick(instance)
 	    {
 		let jobEvent = jobFinishHeap.pop();
 		let mach = jobEvent.onMachine;
-		CloseExecutionUnit(sched, mach, time, machineMap, startTimes);
+		CloseExecutionUnit(retsched, mach, time, machineMap, startTimes);
 	    }
 
 	    // d) Finally, go through all (available) machines and through all pending (not running) jobs
 	    // and assign them, possibly with one in the underworked state.
-	    PrunePending();
-	    var curmach = 0;
+	    PrunePending(pending);
+	    let curmach = 0;
 	    for (let pendingJob of pending)
 	    {
+		if (pendingJob == null)
+		{
+		    continue;
+		}
 	
-		while (curmach < machineMap.length && machineMap[curmach] != null) // skip busy machines
+		while (curmach < insta.machines && machineMap[curmach] != null) // skip busy machines
 		{
 		    curmach++;
 		}
 
-		if (curmach >= machineMap.length)
+		if (curmach >= insta.machines)
 		{
 		    break;
 		}
@@ -190,13 +265,37 @@ function Yardstick(instance)
 
 		if (pendingJob.underworked(time))
 		{
+		    let availableMachines = insta.machines - curmach;
+		    console.log("Scheduling job " + pendingJob.id + "on the " + availableMachines + "available machines.");
+		    jobUnderworked = true;
+		    underID = pendingJob.id;
+		    
 		    // Schedule on all remaining available machines.
+		    while (curmach < insta.machines)
+		    {
+			machineMap[curmach] = pendingJob.id;
+			startTimes[curmach] = time;
+			curmach++;
+		    }
 		    // Set the time when it stops being pending.
+		    leavesUnderworked = ComputePacingChange(pendingJob, time, availableMachines);
+
+		    // No more machines available, break out of the for loop.
+		    break;
 		} else
 		{
-		    // Job is pacing, schedule it on the current machine.
 		    // Insert a new element into the jobFinishHeap.
-		    
+		    console.log("Scheduling job " + pendingJob.id + "in pacing mode on machine " + curmach);
+
+		    let finishTime = time + (pendingJob.ptime - pendingJob.amountDone);
+		    var je = new Event(finishTime, pendingJob.id, curmach);
+		    jobFinishHeap.push(je);
+
+	            // Schedule the job (as pacing) on the current machine.
+		    machineMap[curmach] = pendingJob.id;
+		    startTimes[curmach] = time;
+		    curmach++;
+
 		}
 	    }
 		
@@ -207,27 +306,69 @@ function Yardstick(instance)
 		break;
 	    } else {
 
+		let updated = false;
+		let newtime = Number(0);
+		
 		if (!jobFinishHeap.isEmpty())
 		{
-		    time = jobFinishHeap.peek().release;
+		    if (!updated)
+		    {
+			newtime = jobFinishHeap.peek().time;
+			updated = true;
+		    } else
+		    {
+			newtime = Math.min(newtime, jobFinishHeap.peek().time);
+		    }
 		}
 
 		if (jobUpcoming)
 		{
-		    time = Math.min(time, upcomingRelease);
+		    if (!updated)
+		    {
+			newtime = upcomingRelease
+			updated = true;
+		    } else
+		    {
+			newtime = Math.min(newtime, upcomingRelease);
+		    }
 		}
 
 		if (jobUnderworked)
 		{
-		    time = Math.min(time, leavesUnderworked);
+		    if (!updated)
+		    {
+			newtime = leavesUnderworked;
+			updated = true;
+		    } else
+		    {
+			newtime = Math.min(newtime, leavesUnderworked);
+		    }
 		}
+		    
+		if (nearlyEqual(newtime, time))
+		{
+		    console.log("Time did not move; this can happen, but we warn the user anyway.");
+		} else
+		{
+		    console.log("Updating time step from " + time + " to " + newtime);
+		    debugger;
+		}
+
+		if (newtime === undefined || newtime === null || newtime == NaN)
+		{
+		    throw new Error();
+		}
+		time = newtime;
+		if (time === undefined || time === null || time == NaN)
+		{
+		    throw new Error();
+		}
+
 	    }
 	}
     }
+    return retsched;
 }
-
-Yardstick();
-
 
 
 // Currently unused and needs finishing: a multiarray class that
